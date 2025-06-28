@@ -1,0 +1,222 @@
+{
+  "name": "pharmflow whatsapp ai",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Webhook').item.json.body.Body }}",
+        "options": {
+          "systemMessage": "=# ROLE\nYou are PharmFlow — a smart and emotionally aware AI assistant for pharmacy owners in Nigeria.\nYou communicate with the user over WhatsApp to help them manage their pharmacy, boost sales, handle inventory, and stay motivated.\n\n# RULES\nWhen the user sends a new message, decide if they shared any noteworthy information that should be saved in memory for future reference.\nIf so, use the Save Memory tool to store this information.\nDO NOT inform the user that you are saving this information.\n\nSimply continue the conversation as normal.\n\n~# Tools\n## Save Memory to save message tool\nUse this tool to store any important facts shared by the user.\nSummarize the information clearly and pass it to this tool.\n~\n# Memories\nThese are the last stored facts collected from the user (including date/time).\n{{$json.memory_log.toJsonString() }}\n\n!! IMPORTANT !!\nTake these stored facts into account when replying.\nIf a fact was already stored, do not repeat asking for it.\n\nRespond naturally and conversationally.\nalways make sure you're using the save_message tool to save user message to memory_log!"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [160, -380],
+      "id": "f69f8ee5-16f7-4a1b-9600-e9158ee5e8bc",
+      "name": "AI Agent",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-chat-v3-0324:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [160, -60],
+      "id": "cec2521f-c372-40ff-8be3-2f252a2457ad",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "REDACTED",
+          "name": "REDACTED"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pharmflow-chat",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-700, -320],
+      "id": "27b1dfa2-a47c-4e7c-9bff-0324c040f2fd",
+      "name": "Webhook",
+      "webhookId": "REDACTED"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "chatinput",
+              "value": "={{ $json.body.Body }}",
+              "type": "string"
+            },
+            {
+              "name": "session_id",
+              "value": "={{ $json.body.From }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-540, -80],
+      "id": "138234c6-cd48-41d2-9983-99005c39cae8",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/YOUR_ACCOUNT_SID/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "={{ \"whatsapp:+2349120754776\" }}"
+            },
+            {
+              "name": "From",
+              "value": "={{ \"whatsapp:+14155238886\" }}"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, -180],
+      "id": "c3918710-7b6a-4e41-8551-cb62c4e71107",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "REDACTED",
+          "name": "REDACTED"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "memory_log",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $('Webhook').item.json.body.From }}"
+            },
+            {
+              "fieldId": "sender",
+              "fieldValue": "={{ $('Webhook').item.json.body.From }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $fromAI('fieldValues2_Field_Value', ``, 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [480, -80],
+      "id": "3de78907-3db9-4eb1-b495-4fc55027eceb",
+      "name": "save_message",
+      "credentials": {
+        "supabaseApi": {
+          "id": "REDACTED",
+          "name": "REDACTED"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "memory_log",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "sender",
+              "condition": "eq",
+              "keyValue": "={{ $('Webhook').item.json.body.From }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-360, -300],
+      "id": "157283c4-835e-4ed2-95c5-4a6eac73bb83",
+      "name": "Get memory",
+      "credentials": {
+        "supabaseApi": {
+          "id": "REDACTED",
+          "name": "REDACTED"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "memory_log",
+        "include": "specifiedFields",
+        "fieldsToInclude": "message,created_at",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [-140, -280],
+      "id": "4af22ad9-8960-4c54-bec6-890e3a6fe4a8",
+      "name": "Aggregate"
+    }
+  ],
+  "connections": {
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [{ "node": "Edit Fields", "type": "main", "index": 0 }]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [{ "node": "Get memory", "type": "main", "index": 0 }]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [{ "node": "HTTP Request", "type": "main", "index": 0 }]
+      ]
+    },
+    "save_message": {
+      "ai_tool": [
+        [{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]
+      ]
+    },
+    "Get memory": {
+      "main": [
+        [{ "node": "Aggregate", "type": "main", "index": 0 }]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [{ "node": "AI Agent", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}
